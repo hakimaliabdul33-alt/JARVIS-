@@ -1,0 +1,350 @@
+package com.vyra.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.widget.Button;
+import android.widget.VideoView;
+import android.widget.MediaController;
+import android.os.Bundle;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+
+    private static final int PICK_SHORT_VIDEO = 1001;
+
+    private LinearLayout content;
+    private int purple = Color.rgb(124, 58, 237);
+    private int text = Color.rgb(17, 24, 39);
+    private int secondary = Color.rgb(107, 114, 128);
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        showHome();
+    }
+
+    private TextView label(String value, float size, int color) {
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(size);
+        v.setTextColor(color);
+        v.setPadding(20, 16, 20, 16);
+        return v;
+    }
+
+    private TextView navItem(String icon, String name) {
+        TextView v = label(icon + "\n" + name, 11, secondary);
+        v.setGravity(Gravity.CENTER);
+        v.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1));
+        return v;
+    }
+
+    private void showHome() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.WHITE);
+        root.setPadding(0, 28, 0, 0);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView logo = label("VYRA", 28, purple);
+        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        top.addView(logo, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView add = label("＋", 30, text);
+        add.setGravity(Gravity.CENTER);
+        top.addView(add, new LinearLayout.LayoutParams(60, 70));
+
+        root.addView(top);
+
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(16, 10, 16, 10);
+
+        TextView welcome = label("Your Feed", 24, text);
+        welcome.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(welcome);
+
+        TextView info = label(
+                "Videos, photos and updates from people you follow.",
+                15, secondary);
+        content.addView(info);
+
+        TextView empty = label(
+                "\n\nNo posts yet\n\nFollow people and creators to see their posts here.",
+                17, secondary);
+        empty.setGravity(Gravity.CENTER);
+        content.addView(empty);
+
+        root.addView(content, new LinearLayout.LayoutParams(
+                -1, 0, 1));
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER);
+        nav.setBackgroundColor(Color.WHITE);
+
+        TextView home = navItem("⌂", "Home");
+        home.setOnClickListener(v -> showHome());
+
+        TextView shorts = navItem("▶", "Shorts");
+        TextView search = navItem("⌕", "Search");
+        TextView notify = navItem("♡", "Activity");
+        TextView profile = navItem("●", "Profile");
+
+        home.setTextColor(purple);
+
+        nav.addView(home);
+        nav.addView(shorts);
+        nav.addView(search);
+        nav.addView(notify);
+        nav.addView(profile);
+
+        root.addView(nav, new LinearLayout.LayoutParams(-1, 90));
+
+        shorts.setOnClickListener(v -> showShorts());
+        search.setOnClickListener(v -> showMessage("Search"));
+        notify.setOnClickListener(v -> showMessage("Notifications"));
+        profile.setOnClickListener(v -> showProfile());
+
+        setContentView(root);
+    }
+
+
+    private void showProfile() {
+        content.removeAllViews();
+
+        TextView heading = label("Profile", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView name = label("VYRA User", 22, text);
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(name);
+
+        content.addView(label("@vyra_user", 15, secondary));
+        content.addView(label("0 Followers    •    0 Following", 15, secondary));
+
+        TextView bio = label("\nShare your world on VYRA.", 16, text);
+        content.addView(bio);
+
+        TextView settings = label("\n⚙  Settings", 18, text);
+        settings.setOnClickListener(v -> showSettings());
+        content.addView(settings);
+    }
+
+    private void showSettings() {
+        content.removeAllViews();
+
+        TextView heading = label("Settings", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView appearance = label("🎨  Appearance", 18, text);
+        content.addView(appearance);
+
+        TextView theme = label("   Light / Dark theme", 16, secondary);
+        content.addView(theme);
+
+        TextView color = label("   App color", 16, secondary);
+        content.addView(color);
+
+        TextView privacy = label("🔒  Privacy", 18, text);
+        content.addView(privacy);
+
+        TextView notifications = label("🔔  Notifications", 18, text);
+        content.addView(notifications);
+
+        TextView account = label("👤  Account", 18, text);
+        content.addView(account);
+
+        TextView language = label("🌐  Language", 18, text);
+        content.addView(language);
+    }
+
+    private void showShorts() {
+        content.removeAllViews();
+
+        TextView heading = label("Shorts", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView info = label(
+                "Watch and create short vertical videos on VYRA.",
+                15, secondary);
+        content.addView(info);
+
+        Button upload = new Button(this);
+        upload.setText("＋  Choose a video");
+        upload.setTextSize(16);
+        upload.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, PICK_SHORT_VIDEO);
+        });
+        content.addView(upload);
+
+        TextView status = label(
+                "\nNo Short selected yet.",
+                16, secondary);
+        status.setGravity(Gravity.CENTER);
+        content.addView(status);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PICK_SHORT_VIDEO && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+
+            Uri videoUri = data.getData();
+
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        videoUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+            } catch (SecurityException ignored) {
+            }
+
+            showUploadEditor(videoUri);
+        }
+    }
+
+    private void showUploadEditor(Uri videoUri) {
+        content.removeAllViews();
+
+        TextView heading = label("Upload Video", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView selected = label("✓ Video selected", 15, secondary);
+        content.addView(selected);
+
+        android.widget.EditText titleInput = new android.widget.EditText(this);
+        titleInput.setHint("Title");
+        titleInput.setTextSize(16);
+        content.addView(titleInput);
+
+        android.widget.EditText categoryInput = new android.widget.EditText(this);
+        categoryInput.setHint("Category");
+        categoryInput.setTextSize(16);
+        content.addView(categoryInput);
+
+        android.widget.EditText countryInput = new android.widget.EditText(this);
+        countryInput.setHint("Country");
+        countryInput.setTextSize(16);
+        content.addView(countryInput);
+
+        android.widget.EditText languageInput = new android.widget.EditText(this);
+        languageInput.setHint("Language");
+        languageInput.setTextSize(16);
+        content.addView(languageInput);
+
+        TextView trim = label("✂  Trim / Cut video", 17, text);
+        content.addView(trim);
+
+        TextView effects = label("✨  3D Animation / Effects", 17, text);
+        content.addView(effects);
+
+        TextView progress = label("\nUpload progress: 0%\n", 17, secondary);
+        progress.setGravity(Gravity.CENTER);
+        content.addView(progress);
+
+        Button upload = new Button(this);
+        upload.setText("📤  Upload Video");
+        upload.setTextSize(16);
+        content.addView(upload);
+
+        upload.setOnClickListener(v -> {
+            upload.setEnabled(false);
+            progress.setTextColor(secondary);
+
+            final android.os.Handler handler =
+                    new android.os.Handler(android.os.Looper.getMainLooper());
+            final int[] percent = {0};
+
+            Runnable uploader = new Runnable() {
+                @Override
+                public void run() {
+                    percent[0] += 5;
+
+                    int remaining = 100 - percent[0];
+
+                    progress.setText(
+                            "\nUpload progress: " + percent[0] + "%\n" +
+                            "Remaining: " + remaining + "%\n"
+                    );
+
+                    if (percent[0] >= 100) {
+                        progress.setTextColor(purple);
+                        progress.setText("\nUpload successful: 100%\n");
+                        handler.postDelayed(() -> showHome(), 700);
+                    } else {
+                        handler.postDelayed(this, 250);
+                    }
+                }
+            };
+
+            handler.post(uploader);
+        });
+    }
+
+    private void showShortPreview(Uri videoUri) {
+        content.removeAllViews();
+
+        TextView heading = label("Short Preview", 26, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        VideoView video = new VideoView(this);
+        MediaController controller = new MediaController(this);
+        controller.setAnchorView(video);
+        video.setMediaController(controller);
+        video.setVideoURI(videoUri);
+        video.requestFocus();
+        video.setLayoutParams(new LinearLayout.LayoutParams(
+                -1, 600));
+        content.addView(video);
+
+        Button play = new Button(this);
+        play.setText("▶  Play Short");
+        play.setOnClickListener(v -> {
+            video.start();
+        });
+        content.addView(play);
+
+        Button back = new Button(this);
+        back.setText("←  Choose another video");
+        back.setOnClickListener(v -> showShorts());
+        content.addView(back);
+
+        video.setOnPreparedListener(mp -> {
+            mp.setLooping(true);
+            video.start();
+        });
+    }
+
+    private void showMessage(String title) {
+        content.removeAllViews();
+
+        TextView heading = label(title, 26, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView message = label(
+                "\nThis section is ready for the next VYRA feature.",
+                16, secondary);
+        content.addView(message);
+    }
+}

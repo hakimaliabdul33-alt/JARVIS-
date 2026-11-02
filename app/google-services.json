@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "322676772442",
+    "project_id": "myra-93d48",
+    "storage_bucket": "myra-93d48.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322676772442:android:13af8a672803b93585d263",
+        "android_client_info": {
+          "package_name": "com.vyra.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOl3UUuxTA2Bx6pPh0X7_1Ig60LbWTBx0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

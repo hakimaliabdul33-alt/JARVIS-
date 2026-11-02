@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VYRA" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@color/vyra_background</item>
+        <item name="android:navigationBarColor">@color/vyra_background</item>
+        <item name="android:colorAccent">@color/vyra_primary</item>
+    </style>
+</resources>

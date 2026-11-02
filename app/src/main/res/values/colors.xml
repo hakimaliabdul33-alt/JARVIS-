@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vyra_primary">#7C3AED</color>
+    <color name="vyra_background">#FFFFFF</color>
+    <color name="vyra_text">#111827</color>
+    <color name="vyra_secondary">#6B7280</color>
+</resources>

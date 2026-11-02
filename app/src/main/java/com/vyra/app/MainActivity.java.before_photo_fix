@@ -1,0 +1,544 @@
+package com.vyra.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.widget.Button;
+import android.widget.VideoView;
+import android.widget.MediaController;
+import android.os.Bundle;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+
+    private static final int PICK_SHORT_VIDEO = 1001;
+    private static final int PICK_PROFILE_PHOTO = 1002;
+
+    private LinearLayout content;
+    private int purple = Color.rgb(124, 58, 237);
+    private int text = Color.rgb(17, 24, 39);
+    private int secondary = Color.rgb(107, 114, 128);
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        showHome();
+    }
+
+    private TextView label(String value, float size, int color) {
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(size);
+        v.setTextColor(color);
+        v.setPadding(20, 16, 20, 16);
+        return v;
+    }
+
+    private TextView navItem(String icon, String name) {
+        TextView v = label(icon + "\n" + name, 11, secondary);
+        v.setGravity(Gravity.CENTER);
+        v.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1));
+        return v;
+    }
+
+    private void showHome() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.WHITE);
+        root.setPadding(0, 28, 0, 0);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView logo = label("VYRA", 28, purple);
+        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        top.addView(logo, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView add = label("＋", 30, text);
+        add.setGravity(Gravity.CENTER);
+        top.addView(add, new LinearLayout.LayoutParams(60, 70));
+
+        root.addView(top);
+
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(16, 10, 16, 10);
+
+        TextView welcome = label("Your Feed", 24, text);
+        welcome.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(welcome);
+
+        TextView info = label(
+                "Videos, photos and updates from people you follow.",
+                15, secondary);
+        content.addView(info);
+
+        TextView empty = label(
+                "\n\nNo posts yet\n\nFollow people and creators to see their posts here.",
+                17, secondary);
+        empty.setGravity(Gravity.CENTER);
+        content.addView(empty);
+
+        root.addView(content, new LinearLayout.LayoutParams(
+                -1, 0, 1));
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER);
+        nav.setBackgroundColor(Color.WHITE);
+
+        TextView home = navItem("⌂", "Home");
+        home.setOnClickListener(v -> showHome());
+
+        TextView shorts = navItem("▶", "Shorts");
+        TextView search = navItem("⌕", "Search");
+        TextView notify = navItem("♡", "Activity");
+        TextView profile = navItem("●", "Profile");
+
+        home.setTextColor(purple);
+
+        nav.addView(home);
+        nav.addView(shorts);
+        nav.addView(search);
+        nav.addView(notify);
+        nav.addView(profile);
+
+        root.addView(nav, new LinearLayout.LayoutParams(-1, 90));
+
+        shorts.setOnClickListener(v -> showShorts());
+        search.setOnClickListener(v -> showMessage("Search"));
+        notify.setOnClickListener(v -> showMessage("Notifications"));
+        profile.setOnClickListener(v -> showProfile());
+
+        setContentView(root);
+    }
+
+
+    private void showProfile() {
+        content.removeAllViews();
+
+        TextView heading = label("Profile", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        android.widget.ImageView profilePhoto = new android.widget.ImageView(this);
+        profilePhoto.setImageResource(android.R.drawable.ic_menu_camera);
+        profilePhoto.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+
+        LinearLayout.LayoutParams photoParams =
+                new LinearLayout.LayoutParams(220, 220);
+        photoParams.gravity = Gravity.CENTER;
+        profilePhoto.setLayoutParams(photoParams);
+        content.addView(profilePhoto);
+
+        profilePhoto.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("image/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, PICK_PROFILE_PHOTO);
+        });
+
+        TextView photoHint = label("Tap photo to change", 14, secondary);
+        photoHint.setGravity(Gravity.CENTER);
+        content.addView(photoHint);
+
+        TextView name = label("VYRA User", 22, text);
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(name);
+
+        content.addView(label("@vyra_user", 15, secondary));
+        content.addView(label("0 Followers    •    0 Following", 15, secondary));
+
+        TextView bio = label("\nShare your world on VYRA.", 16, text);
+        content.addView(bio);
+
+        Button editProfile = new Button(this);
+        editProfile.setText("✏  Edit Profile");
+        editProfile.setTextSize(16);
+        content.addView(editProfile);
+
+        editProfile.setOnClickListener(v -> {
+            android.widget.EditText nameInput = new android.widget.EditText(this);
+            nameInput.setHint("Name");
+            nameInput.setText("VYRA User");
+
+            android.widget.EditText bioInput = new android.widget.EditText(this);
+            bioInput.setHint("Bio");
+            bioInput.setText("Share your world on VYRA.");
+
+            android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+            box.setOrientation(android.widget.LinearLayout.VERTICAL);
+            box.addView(nameInput);
+            box.addView(bioInput);
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Edit Profile")
+                    .setView(box)
+                    .setPositiveButton("Save", (dialog, which) -> {
+                        String newName = nameInput.getText().toString().trim();
+                        String newBio = bioInput.getText().toString().trim();
+
+                        if (!newName.isEmpty()) {
+                            name.setText(newName);
+                        }
+
+                        if (!newBio.isEmpty()) {
+                            bio.setText("\n" + newBio);
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+
+        TextView settings = label("\n⚙  Settings", 18, text);
+        settings.setOnClickListener(v -> showSettings());
+        content.addView(settings);
+    }
+
+    private void showSettings() {
+        content.removeAllViews();
+
+        TextView heading = label("Settings", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView appearance = label("🎨  Appearance", 18, text);
+        content.addView(appearance);
+
+        TextView theme = label("   Light / Dark theme", 16, secondary);
+        content.addView(theme);
+
+        TextView color = label("   App color", 16, secondary);
+        content.addView(color);
+
+        TextView privacy = label("🔒  Privacy", 18, text);
+        content.addView(privacy);
+
+        TextView notifications = label("🔔  Notifications", 18, text);
+        content.addView(notifications);
+
+        TextView account = label("👤  Account", 18, text);
+        content.addView(account);
+
+        TextView language = label("🌐  Language", 18, text);
+        content.addView(language);
+    }
+
+    private void showShorts() {
+        content.removeAllViews();
+
+        TextView heading = label("Shorts", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView info = label(
+                "Watch and create short vertical videos on VYRA.",
+                15, secondary);
+        content.addView(info);
+
+        Button upload = new Button(this);
+        upload.setText("＋  Choose a video");
+        upload.setTextSize(16);
+        upload.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, PICK_SHORT_VIDEO);
+        });
+        content.addView(upload);
+
+        TextView status = label(
+                "\nNo Short selected yet.",
+                16, secondary);
+        status.setGravity(Gravity.CENTER);
+        content.addView(status);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PICK_PROFILE_PHOTO && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+
+            Uri photoUri = data.getData();
+
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        photoUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+            } catch (SecurityException ignored) {
+            }
+
+            showProfile();
+            return;
+        }
+
+        if (requestCode == PICK_SHORT_VIDEO && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+
+            Uri videoUri = data.getData();
+
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        videoUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+            } catch (SecurityException ignored) {
+            }
+
+            showUploadEditor(videoUri);
+        }
+    }
+
+    private void showUploadEditor(Uri videoUri) {
+        content.removeAllViews();
+
+        TextView heading = label("Upload Video", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView selected = label("✓ Video selected", 15, secondary);
+        content.addView(selected);
+
+        android.widget.EditText titleInput = new android.widget.EditText(this);
+        titleInput.setHint("Title");
+        titleInput.setTextSize(16);
+        content.addView(titleInput);
+
+        android.widget.EditText categoryInput = new android.widget.EditText(this);
+        categoryInput.setHint("Category");
+        categoryInput.setTextSize(16);
+        content.addView(categoryInput);
+
+        android.widget.EditText countryInput = new android.widget.EditText(this);
+        countryInput.setHint("Country");
+        countryInput.setTextSize(16);
+        content.addView(countryInput);
+
+        android.widget.EditText languageInput = new android.widget.EditText(this);
+        languageInput.setHint("Language");
+        languageInput.setTextSize(16);
+        content.addView(languageInput);
+
+        Button trim = new Button(this);
+        trim.setText("✂  Trim / Cut video");
+        trim.setTextSize(16);
+        content.addView(trim);
+
+        trim.setOnClickListener(v -> {
+            android.widget.LinearLayout trimBox = new android.widget.LinearLayout(this);
+            trimBox.setOrientation(android.widget.LinearLayout.VERTICAL);
+            trimBox.setPadding(0, 8, 0, 8);
+
+            TextView trimInfo = label("Set start and end time (seconds)", 15, secondary);
+            trimBox.addView(trimInfo);
+
+            android.widget.EditText startInput = new android.widget.EditText(this);
+            startInput.setHint("Start: 0 seconds");
+            startInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            trimBox.addView(startInput);
+
+            android.widget.EditText endInput = new android.widget.EditText(this);
+            endInput.setHint("End: duration in seconds");
+            endInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            trimBox.addView(endInput);
+
+            Button applyTrim = new Button(this);
+            applyTrim.setText("✓  Set Trim Duration");
+            trimBox.addView(applyTrim);
+
+            applyTrim.setOnClickListener(x -> {
+                String start = startInput.getText().toString().trim();
+                String end = endInput.getText().toString().trim();
+
+                if (start.isEmpty() || end.isEmpty()) {
+                    trimInfo.setText("Please enter both start and end time.");
+                    return;
+                }
+
+                trimInfo.setText("✓ Trim set: " + start + "s → " + end + "s");
+            });
+
+            content.addView(trimBox);
+        });
+
+        Button effects = new Button(this);
+        effects.setText("✨  3D Animation / Effects");
+        effects.setTextSize(16);
+        content.addView(effects);
+
+        effects.setOnClickListener(v -> {
+            android.app.AlertDialog.Builder builder =
+                    new android.app.AlertDialog.Builder(this);
+
+            builder.setTitle("Choose an Effect");
+
+            String[] effectOptions = {
+                    "None",
+                    "✨ 3D Zoom",
+                    "🔄 3D Spin",
+                    "↔️ 3D Slide",
+                    "💫 3D Pulse"
+            };
+
+            builder.setItems(effectOptions, (dialog, which) -> {
+                effects.setText("✨ Effect: " + effectOptions[which]);
+            });
+
+            builder.setNegativeButton("Cancel", null);
+            builder.show();
+        });
+
+        Button durationButton = new Button(this);
+        durationButton.setText("⏱  Set Video Duration");
+        durationButton.setTextSize(16);
+        content.addView(durationButton);
+
+        durationButton.setOnClickListener(v -> {
+            android.widget.EditText durationInput = new android.widget.EditText(this);
+            durationInput.setHint("Duration in seconds");
+            durationInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Set Video Duration")
+                    .setMessage("Enter duration in seconds.")
+                    .setView(durationInput)
+                    .setPositiveButton("Apply", (dialog, which) -> {
+                        String value = durationInput.getText().toString().trim();
+
+                        if (value.isEmpty()) {
+                            durationButton.setText("⏱  Duration: Not set");
+                            return;
+                        }
+
+                        try {
+                            int seconds = Integer.parseInt(value);
+
+                            if (seconds > 0) {
+                                durationButton.setText("⏱  Duration: " + seconds + " seconds");
+                            } else {
+                                durationButton.setText("⏱  Duration: Invalid");
+                            }
+                        } catch (NumberFormatException e) {
+                            durationButton.setText("⏱  Duration: Invalid");
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+
+        TextView progress = label("\nUpload progress: 0%\n", 17, secondary);
+        progress.setGravity(Gravity.CENTER);
+        content.addView(progress);
+
+        Button upload = new Button(this);
+        upload.setText("📤  Upload Video");
+        upload.setTextSize(16);
+        content.addView(upload);
+
+        upload.setOnClickListener(v -> {
+            String title = titleInput.getText().toString().trim();
+            String category = categoryInput.getText().toString().trim();
+            String country = countryInput.getText().toString().trim();
+            String language = languageInput.getText().toString().trim();
+
+            if (title.isEmpty() || category.isEmpty() ||
+                    country.isEmpty() || language.isEmpty()) {
+                progress.setTextColor(Color.rgb(220, 38, 38));
+                progress.setText(
+                        "\nPlease fill Title, Category, Country and Language.\n"
+                );
+                return;
+            }
+
+            upload.setEnabled(false);
+            progress.setTextColor(secondary);
+
+            final android.os.Handler handler =
+                    new android.os.Handler(android.os.Looper.getMainLooper());
+            final int[] percent = {0};
+
+            Runnable uploader = new Runnable() {
+                @Override
+                public void run() {
+                    percent[0] += 5;
+
+                    int remaining = 100 - percent[0];
+
+                    progress.setText(
+                            "\nUpload progress: " + percent[0] + "%\n" +
+                            "Remaining: " + remaining + "%\n"
+                    );
+
+                    if (percent[0] >= 100) {
+                        progress.setTextColor(purple);
+                        progress.setText("\nUpload successful: 100%\n");
+                        handler.postDelayed(() -> showHome(), 700);
+                    } else {
+                        handler.postDelayed(this, 250);
+                    }
+                }
+            };
+
+            handler.post(uploader);
+        });
+    }
+
+    private void showShortPreview(Uri videoUri) {
+        content.removeAllViews();
+
+        TextView heading = label("Short Preview", 26, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        VideoView video = new VideoView(this);
+        MediaController controller = new MediaController(this);
+        controller.setAnchorView(video);
+        video.setMediaController(controller);
+        video.setVideoURI(videoUri);
+        video.requestFocus();
+        video.setLayoutParams(new LinearLayout.LayoutParams(
+                -1, 600));
+        content.addView(video);
+
+        Button play = new Button(this);
+        play.setText("▶  Play Short");
+        play.setOnClickListener(v -> {
+            video.start();
+        });
+        content.addView(play);
+
+        Button back = new Button(this);
+        back.setText("←  Choose another video");
+        back.setOnClickListener(v -> showShorts());
+        content.addView(back);
+
+        video.setOnPreparedListener(mp -> {
+            mp.setLooping(true);
+            video.start();
+        });
+    }
+
+    private void showMessage(String title) {
+        content.removeAllViews();
+
+        TextView heading = label(title, 26, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView message = label(
+                "\nThis section is ready for the next VYRA feature.",
+                16, secondary);
+        content.addView(message);
+    }
+}

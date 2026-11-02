@@ -1,0 +1,2294 @@
+package com.vyra.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.Uri;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.VideoView;
+import android.widget.MediaController;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import android.os.Bundle;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+public class MainActivity extends Activity {
+
+    private static final int PICK_SHORT_VIDEO = 1001;
+    private static final int PICK_PROFILE_PHOTO = 1002;
+    private Uri profilePhotoUri;
+
+    private LinearLayout content;
+    private int purple = Color.rgb(124, 58, 237);
+    private int text = Color.rgb(17, 24, 39);
+    private int secondary = Color.rgb(107, 114, 128);
+    private boolean darkMode = false;
+    private boolean privateAccount = false;
+    private boolean notificationsEnabled = true;
+    private SharedPreferences profilePrefs;
+    private FirebaseAuth firebaseAuth;
+    private FirebaseFirestore firestore;
+    private String profileName = "VYRA User";
+    private String profileUsername = "vyrauser";
+    private String profileBio = "Share your world on VYRA";
+    private int followersCount = 0;
+    private int followingCount = 0;
+    private Set<String> followingUsers = new HashSet<>();
+    private Set<String> followerUsers = new HashSet<>();
+
+    private String localVideoUri = null;
+    private String localVideoTitle = null;
+    private ArrayList<String> localComments = new ArrayList<>();
+    private ArrayList<String> localNotifications = new ArrayList<>();
+    private int unreadNotifications = 0;
+    private int localVideoLikes = 0;
+    private boolean localVideoLiked = false;
+    private Set<String> savedPosts = new HashSet<>();
+
+    private void showAuth() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER);
+        root.setPadding(28, 24, 28, 24);
+        root.setBackgroundColor(Color.BLACK);
+
+        TextView logo = label("VYRA", 38, Color.WHITE);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+
+        TextView subtitle = label(
+                "Create your account or sign in",
+                15,
+                Color.LTGRAY
+        );
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 8, 0, 28);
+
+        EditText email = new EditText(this);
+        email.setHint("Email");
+        email.setHintTextColor(Color.GRAY);
+        email.setTextColor(Color.WHITE);
+        email.setSingleLine(true);
+        email.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+
+        EditText password = new EditText(this);
+        password.setHint("Password");
+        password.setHintTextColor(Color.GRAY);
+        password.setTextColor(Color.WHITE);
+        password.setSingleLine(true);
+        password.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
+        Button signIn = new Button(this);
+        signIn.setText("Sign In");
+
+        Button register = new Button(this);
+        register.setText("Create Account");
+
+        TextView status = label("", 14, Color.LTGRAY);
+        status.setGravity(Gravity.CENTER);
+        status.setPadding(0, 14, 0, 0);
+
+        root.addView(
+                logo,
+                new LinearLayout.LayoutParams(-1, -2)
+        );
+        root.addView(
+                subtitle,
+                new LinearLayout.LayoutParams(-1, -2)
+        );
+        int authFieldHeight = (int) (58 * getResources().getDisplayMetrics().density + 0.5f);
+        int authButtonHeight = (int) (52 * getResources().getDisplayMetrics().density + 0.5f);
+
+        root.addView(
+                email,
+                new LinearLayout.LayoutParams(-1, authFieldHeight)
+        );
+
+        LinearLayout.LayoutParams passParams =
+                new LinearLayout.LayoutParams(-1, authFieldHeight);
+        passParams.setMargins(0, 12, 0, 0);
+        root.addView(password, passParams);
+
+        LinearLayout.LayoutParams signParams =
+                new LinearLayout.LayoutParams(-1, authButtonHeight);
+        signParams.setMargins(0, 22, 0, 0);
+        root.addView(signIn, signParams);
+
+        LinearLayout.LayoutParams registerParams =
+                new LinearLayout.LayoutParams(-1, authButtonHeight);
+        registerParams.setMargins(0, 10, 0, 0);
+        root.addView(register, registerParams);
+
+        root.addView(
+                status,
+                new LinearLayout.LayoutParams(-1, -2)
+        );
+
+        signIn.setOnClickListener(v -> {
+            String e = email.getText().toString().trim();
+            String pword = password.getText().toString();
+
+            if (e.isEmpty() || pword.isEmpty()) {
+                status.setText("Email and password required.");
+                return;
+            }
+
+            status.setText("Signing in...");
+
+            firebaseAuth.signInWithEmailAndPassword(e, pword)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            status.setText("Signed in successfully.");
+                            showHome();
+                        } else {
+                            String message =
+                                    task.getException() == null
+                                            ? "Sign in failed."
+                                            : task.getException().getMessage();
+                            status.setText(message);
+                        }
+                    });
+        });
+
+        register.setOnClickListener(v -> {
+            String e = email.getText().toString().trim();
+            String pword = password.getText().toString();
+
+            if (e.isEmpty() || pword.isEmpty()) {
+                status.setText("Email and password required.");
+                return;
+            }
+
+            if (pword.length() < 6) {
+                status.setText("Password must be at least 6 characters.");
+                return;
+            }
+
+            status.setText("Creating account...");
+
+            firebaseAuth.createUserWithEmailAndPassword(e, pword)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            status.setText("Account created.");
+
+                            if (firebaseAuth.getCurrentUser() != null) {
+                                String uid = firebaseAuth.getCurrentUser().getUid();
+                                String userEmail = firebaseAuth.getCurrentUser().getEmail();
+
+                                java.util.Map<String, Object> userData =
+                                        new java.util.HashMap<>();
+
+                                userData.put("uid", uid);
+                                userData.put("email", userEmail);
+                                userData.put("username", profileUsername);
+                                userData.put("displayName", profileName);
+                                userData.put("bio", profileBio);
+                                userData.put("createdAt",
+                                        com.google.firebase.firestore.FieldValue.serverTimestamp());
+
+                                firestore.collection("users")
+                                        .document(uid)
+                                        .set(userData);
+                            }
+
+                            showHome();
+                        } else {
+                            String message =
+                                    task.getException() == null
+                                            ? "Account creation failed."
+                                            : task.getException().getMessage();
+                            status.setText(message);
+                        }
+                    });
+        });
+
+        setContentView(root);
+    }
+
+    private String generateUsername(String name) {
+        String base = name == null ? "" : name.toLowerCase()
+                .replaceAll("[^a-z0-9]", "");
+
+        if (base.isEmpty()) {
+            base = "vyrauser";
+        }
+
+        String[] reserved = {
+                "vyra_creator",
+                "travel_vyra",
+                "foodie_vyra",
+                "tech_vyra",
+                "music_vyra"
+        };
+
+        String username = base;
+        int number = 2;
+
+        while (isUsernameReserved(username, reserved)) {
+            username = base + number;
+            number++;
+        }
+
+        return username;
+    }
+
+    private boolean isUsernameReserved(String username, String[] reserved) {
+        for (String item : reserved) {
+            if (item.equalsIgnoreCase(username)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        firebaseAuth = FirebaseAuth.getInstance();
+        firestore = FirebaseFirestore.getInstance();
+        profilePrefs = getSharedPreferences("VYRA_PROFILE", MODE_PRIVATE);
+        profileName = profilePrefs.getString("profileName", "VYRA User");
+        profileUsername = profilePrefs.getString("profileUsername", generateUsername(profileName));
+        profilePrefs.edit().putString("profileUsername", profileUsername).apply();
+        profileBio = profilePrefs.getString("profileBio", "Share your world on VYRA");
+        String savedProfilePhoto = profilePrefs.getString("profilePhotoUri", null);
+        if (savedProfilePhoto != null && !savedProfilePhoto.isEmpty()) {
+            profilePhotoUri = Uri.parse(savedProfilePhoto);
+        }
+
+        darkMode = profilePrefs.getBoolean("darkMode", false);
+        privateAccount = profilePrefs.getBoolean("privateAccount", false);
+        notificationsEnabled = profilePrefs.getBoolean("notificationsEnabled", true);
+        purple = profilePrefs.getInt(
+                "appColor",
+                Color.rgb(124, 58, 237)
+        );
+
+        followersCount = profilePrefs.getInt("followersCount", 0);
+        followingCount = profilePrefs.getInt("followingCount", 0);
+        followingUsers = profilePrefs.getStringSet("followingUsers", new HashSet<String>());
+        followerUsers = profilePrefs.getStringSet("followerUsers", new HashSet<String>());
+        localVideoUri = profilePrefs.getString("localVideoUri", null);
+        localVideoTitle = profilePrefs.getString("localVideoTitle", null);
+        localComments = new ArrayList<>(
+                profilePrefs.getStringSet("localComments", new HashSet<String>())
+        );
+        localNotifications = new ArrayList<>(
+                profilePrefs.getStringSet("localNotifications", new HashSet<String>())
+        );
+        unreadNotifications = profilePrefs.getInt("unreadNotifications", 0);
+        localVideoLikes = profilePrefs.getInt("localVideoLikes", 0);
+        localVideoLiked = profilePrefs.getBoolean("localVideoLiked", false);
+        savedPosts = new HashSet<>(
+                profilePrefs.getStringSet("savedPosts", new HashSet<String>())
+        );
+        if (firebaseAuth.getCurrentUser() == null) {
+            showAuth();
+        } else {
+            showHome();
+        }
+    }
+
+    private TextView label(String value, float size, int color) {
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(size);
+        v.setTextColor(color);
+        v.setPadding(20, 16, 20, 16);
+        return v;
+    }
+
+    private TextView navItem(String icon, String name) {
+        TextView v = label(icon + "\n" + name, 12, secondary);
+        v.setGravity(Gravity.CENTER);
+        v.setClickable(true);
+        v.setFocusable(true);
+        v.setPadding(4, 8, 4, 8);
+        v.setBackgroundColor(Color.BLACK);
+        return v;
+    }
+
+    private void showHome() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.BLACK);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setPadding(18, 12, 18, 6);
+        top.setBackgroundColor(Color.BLACK);
+
+        TextView logo = label("VYRA", 27, Color.WHITE);
+        logo.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        top.addView(logo, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView search = label("⌕", 30, Color.WHITE);
+        search.setGravity(Gravity.CENTER);
+        top.addView(search, new LinearLayout.LayoutParams(54, 54));
+        search.setClickable(true);
+        search.setOnClickListener(v -> showSearch());
+
+        TextView msg = label("✉", 26, Color.WHITE);
+        msg.setGravity(Gravity.CENTER);
+        top.addView(msg, new LinearLayout.LayoutParams(54, 54));
+        msg.setOnClickListener(v -> showMessages());
+
+        root.addView(top);
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(Color.BLACK);
+
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setBackgroundColor(Color.BLACK);
+        content.setPadding(0, 0, 0, 0);
+
+        if (localVideoUri != null && !localVideoUri.isEmpty()) {
+            try {
+                addLocalVideoPost(Uri.parse(localVideoUri), localVideoTitle);
+            } catch (Exception ignored) {
+            }
+        }
+
+        addFeedPost(
+                "VYRA Creator",
+                "@vyra_creator",
+                "Welcome to VYRA! Share your world with everyone.",
+                "1.2K",
+                "248",
+                "36"
+        );
+
+        addFeedPost(
+                "Travel VYRA",
+                "@travel_vyra",
+                "Exploring new places and creating memories ✨",
+                "856",
+                "142",
+                "18"
+        );
+
+        addFeedPost(
+                "Foodie VYRA",
+                "@foodie_vyra",
+                "Today's favorite food spot 😋",
+                "642",
+                "96",
+                "12"
+        );
+
+        scroll.addView(
+                content,
+                new android.widget.ScrollView.LayoutParams(-1, -2)
+        );
+
+        root.addView(
+                scroll,
+                new LinearLayout.LayoutParams(-1, 0, 1)
+        );
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER);
+        nav.setPadding(4, 4, 4, 4);
+        nav.setBackgroundColor(Color.BLACK);
+
+        TextView home = navItem("⌂", "Home");
+        TextView messages = navItem("▱", "Message");
+        TextView upload = navItem("⊕", "Upload");
+        TextView account = navItem("♙", "Account");
+
+        home.setTextColor(purple);
+
+        nav.addView(home, new LinearLayout.LayoutParams(0, 82, 1));
+        nav.addView(messages, new LinearLayout.LayoutParams(0, 82, 1));
+        nav.addView(upload, new LinearLayout.LayoutParams(0, 82, 1));
+        nav.addView(account, new LinearLayout.LayoutParams(0, 82, 1));
+
+        root.addView(nav);
+
+        home.setOnClickListener(v -> showHome());
+        messages.setOnClickListener(v -> showMessages());
+        upload.setOnClickListener(v -> showShorts());
+        account.setOnClickListener(v -> showProfile());
+
+        setContentView(root);
+    }
+
+    private void addLocalVideoPost(Uri videoUri, String title) {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int videoHeight = (int)(screenWidth * 1.55f);
+
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundColor(Color.BLACK);
+        frame.setLayoutParams(new LinearLayout.LayoutParams(-1, videoHeight));
+
+        VideoView video = new VideoView(this);
+        video.setVideoURI(videoUri);
+        video.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+        video.setOnPreparedListener(mp -> {
+            mp.setLooping(true);
+            video.start();
+        });
+        frame.addView(video);
+
+        LinearLayout side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setGravity(Gravity.CENTER);
+        side.setPadding(0, 0, 10, 10);
+
+        FrameLayout.LayoutParams sideParams =
+                new FrameLayout.LayoutParams(90, -2, Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+
+        TextView like = overlayAction(
+                localVideoLiked ? "♥" : "♡",
+                String.valueOf(localVideoLikes)
+        );
+        TextView comment = overlayAction("○", "Comment");
+        TextView share = overlayAction("⌁", "Share");
+        TextView save = overlayAction(
+                savedPosts.contains("local|" + title) ? "▣" : "□",
+                "Save"
+        );
+
+        side.addView(like);
+        side.addView(comment);
+        side.addView(share);
+        side.addView(save);
+        frame.addView(side, sideParams);
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(18, 12, 18, 14);
+        info.setBackgroundColor(Color.argb(215, 0, 0, 0));
+
+        TextView author = label(profileName + "  ✓", 17, Color.WHITE);
+        author.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        info.addView(author);
+        info.addView(label("@" + profileUsername, 13, Color.LTGRAY));
+
+        LinearLayout followRow = new LinearLayout(this);
+        followRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView music = label(
+                "♫  Original sound • VYRA",
+                13,
+                Color.WHITE
+        );
+        followRow.addView(music, new LinearLayout.LayoutParams(0, -2, 1));
+
+        Button follow = new Button(this);
+        follow.setText("Follow");
+        follow.setTextSize(12);
+        followRow.addView(follow);
+
+        info.addView(followRow);
+
+        FrameLayout.LayoutParams infoParams =
+                new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        frame.addView(info, infoParams);
+
+        like.setOnClickListener(v -> {
+            localVideoLiked = !localVideoLiked;
+            if (localVideoLiked) {
+                localVideoLikes++;
+            } else {
+                localVideoLikes = Math.max(0, localVideoLikes - 1);
+            }
+
+            like.setText(
+                    (localVideoLiked ? "♥" : "♡")
+                    + "\n" + localVideoLikes
+            );
+
+            profilePrefs.edit()
+                    .putInt("localVideoLikes", localVideoLikes)
+                    .putBoolean("localVideoLiked", localVideoLiked)
+                    .apply();
+        });
+
+        comment.setOnClickListener(v -> showMessage("Comments"));
+
+        share.setOnClickListener(v -> {
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("text/plain");
+            shareIntent.putExtra(
+                    Intent.EXTRA_TEXT,
+                    "Check this video on VYRA: " +
+                    (title == null ? "My VYRA Video" : title)
+            );
+            startActivity(Intent.createChooser(shareIntent, "Share with"));
+        });
+
+        String saveKey = "local|" + title;
+        save.setOnClickListener(v -> {
+            if (savedPosts.contains(saveKey)) {
+                savedPosts.remove(saveKey);
+                save.setText("□\nSave");
+            } else {
+                savedPosts.add(saveKey);
+                save.setText("▣\nSaved");
+            }
+
+            profilePrefs.edit()
+                    .putStringSet("savedPosts", new HashSet<>(savedPosts))
+                    .apply();
+        });
+
+        content.addView(frame);
+    }
+
+    private void addFeedPost(
+            String displayName,
+            String username,
+            String caption,
+            String views,
+            String likes,
+            String comments) {
+
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int videoHeight = (int)(screenWidth * 1.55f);
+
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundColor(Color.rgb(18, 18, 18));
+        frame.setLayoutParams(new LinearLayout.LayoutParams(-1, videoHeight));
+
+        TextView media = label(
+                "▶\n\nVYRA\nVIDEO",
+                25,
+                Color.WHITE
+        );
+        media.setGravity(Gravity.CENTER);
+        media.setBackgroundColor(Color.rgb(35, 35, 35));
+        frame.addView(media, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setGravity(Gravity.CENTER);
+        side.setPadding(0, 0, 10, 10);
+
+        FrameLayout.LayoutParams sideParams =
+                new FrameLayout.LayoutParams(
+                        90, -2,
+                        Gravity.RIGHT | Gravity.CENTER_VERTICAL
+                );
+
+        TextView like = overlayAction("♡", likes);
+        TextView comment = overlayAction("○", comments);
+        TextView share = overlayAction("⌁", "Share");
+
+        String saveKey = username + "|" + caption;
+        TextView save = overlayAction(
+                savedPosts.contains(saveKey) ? "▣" : "□",
+                "Save"
+        );
+
+        side.addView(like);
+        side.addView(comment);
+        side.addView(share);
+        side.addView(save);
+        frame.addView(side, sideParams);
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(18, 12, 18, 14);
+        info.setBackgroundColor(Color.argb(220, 0, 0, 0));
+
+        TextView author = label(displayName + "  ✓", 17, Color.WHITE);
+        author.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        info.addView(author);
+        info.addView(label(username, 13, Color.LTGRAY));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView desc = label(caption, 13, Color.WHITE);
+        row.addView(desc, new LinearLayout.LayoutParams(0, -2, 1));
+
+        Button follow = new Button(this);
+        follow.setText("Follow");
+        follow.setTextSize(12);
+        row.addView(follow);
+
+        info.addView(row);
+        info.addView(label("♫  Original sound • " + views + " views", 12, Color.LTGRAY));
+
+        frame.addView(
+                info,
+                new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)
+        );
+
+        like.setOnClickListener(v -> {
+            like.setText("♥\n" + likes);
+            addNotification("You liked a post.");
+        });
+
+        comment.setOnClickListener(v -> showMessage("Comments"));
+
+        share.setOnClickListener(v -> {
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("text/plain");
+            shareIntent.putExtra(
+                    Intent.EXTRA_TEXT,
+                    "Check this post on VYRA: " + caption
+            );
+            startActivity(Intent.createChooser(shareIntent, "Share with"));
+        });
+
+        save.setOnClickListener(v -> {
+            if (savedPosts.contains(saveKey)) {
+                savedPosts.remove(saveKey);
+                save.setText("□\nSave");
+            } else {
+                savedPosts.add(saveKey);
+                save.setText("▣\nSaved");
+            }
+
+            profilePrefs.edit()
+                    .putStringSet("savedPosts", new HashSet<>(savedPosts))
+                    .apply();
+        });
+
+        content.addView(frame);
+    }
+
+    private TextView overlayAction(String icon, String value) {
+        TextView v = label(icon + "\n" + value, 15, Color.WHITE);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(4, 16, 4, 16);
+        v.setShadowLayer(8, 0, 2, Color.BLACK);
+        return v;
+    }
+
+    private void showProfile() {
+        content.removeAllViews();
+
+        TextView heading = label("Profile", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        android.widget.ImageView profilePhoto = new android.widget.ImageView(this);
+        profilePhoto.setImageResource(android.R.drawable.ic_menu_camera);
+        if (profilePhotoUri != null) {
+            profilePhoto.setImageURI(profilePhotoUri);
+            profilePhoto.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        }
+        if (profilePhotoUri == null) {
+            profilePhoto.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+        }
+
+        LinearLayout.LayoutParams photoParams =
+                new LinearLayout.LayoutParams(220, 220);
+        photoParams.gravity = Gravity.CENTER;
+        profilePhoto.setLayoutParams(photoParams);
+        content.addView(profilePhoto);
+
+        profilePhoto.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("image/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, PICK_PROFILE_PHOTO);
+        });
+
+        TextView photoHint = label("Tap photo to change", 14, secondary);
+        photoHint.setGravity(Gravity.CENTER);
+        content.addView(photoHint);
+
+        Button removePhoto = new Button(this);
+        removePhoto.setText("🗑  Remove Photo");
+        removePhoto.setTextSize(15);
+        content.addView(removePhoto);
+
+        removePhoto.setOnClickListener(v -> {
+            profilePhotoUri = null;
+
+            profilePrefs.edit()
+                    .remove("profilePhotoUri")
+                    .apply();
+
+            showProfile();
+        });
+
+        TextView name = label(profileName, 22, text);
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(name);
+
+        content.addView(label("@" + profileUsername, 15, secondary));
+        LinearLayout followStats = new LinearLayout(this);
+        followStats.setOrientation(LinearLayout.HORIZONTAL);
+        followStats.setGravity(Gravity.CENTER);
+        Button followersButton = new Button(this);
+        followersButton.setText(followersCount + " Followers");
+        Button followingButton = new Button(this);
+        followingButton.setText(followingCount + " Following");
+        followStats.addView(followersButton, new LinearLayout.LayoutParams(0, -2, 1));
+        followStats.addView(followingButton, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(followStats);
+        followersButton.setOnClickListener(v -> showUserList("Followers", followerUsers));
+        followingButton.setOnClickListener(v -> showUserList("Following", followingUsers));
+        Button followButton = new Button(this);
+        followButton.setText(followingUsers.contains("vyra_creator") ? "✓ Following" : "+ Follow");
+        followButton.setTextSize(16);
+        content.addView(followButton);
+
+        followButton.setOnClickListener(v -> {
+            String targetUser = "vyra_creator";
+
+            if (followingUsers.contains(targetUser)) {
+                followingUsers.remove(targetUser);
+                followingCount = Math.max(0, followingCount - 1);
+            } else {
+                followingUsers.add(targetUser);
+                followingCount++;
+                addNotification("You followed @" + targetUser + ".");
+            }
+
+            profilePrefs.edit()
+                    .putInt("followingCount", followingCount)
+                    .putStringSet("followingUsers", new HashSet<>(followingUsers))
+                    .apply();
+
+            showProfile();
+        });
+
+        TextView bio = label("\n" + profileBio, 16, text);
+        content.addView(bio);
+
+        Button editProfile = new Button(this);
+        editProfile.setText("✏  Edit Profile");
+        editProfile.setTextSize(16);
+        content.addView(editProfile);
+
+        editProfile.setOnClickListener(v -> {
+            android.widget.EditText nameInput = new android.widget.EditText(this);
+            nameInput.setHint("Name");
+            nameInput.setText(profileName);
+
+            android.widget.EditText bioInput = new android.widget.EditText(this);
+            bioInput.setHint("Bio");
+            bioInput.setText(profileBio);
+
+            android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+            box.setOrientation(android.widget.LinearLayout.VERTICAL);
+            box.addView(nameInput);
+            box.addView(bioInput);
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Edit Profile")
+                    .setView(box)
+                    .setPositiveButton("Save", (dialog, which) -> {
+                        String newName = nameInput.getText().toString().trim();
+                        String newBio = bioInput.getText().toString().trim();
+                        profileName = newName.isEmpty() ? profileName : newName;
+                        profileBio = newBio.isEmpty() ? profileBio : newBio;
+
+                        if (!newName.isEmpty()) {
+                            profileUsername = generateUsername(profileName);
+                        }
+
+                        profilePrefs.edit()
+                                .putString("profileName", profileName)
+                                .putString("profileUsername", profileUsername)
+                                .putString("profileBio", profileBio)
+                                .apply();
+                        profilePrefs.edit().putInt("followersCount", followersCount).putInt("followingCount", followingCount).apply();
+
+                        if (!newName.isEmpty()) {
+                            name.setText(newName);
+                        }
+
+                        if (!newBio.isEmpty()) {
+                            bio.setText("\n" + newBio);
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+
+        TextView settings = label("\n⚙  Settings", 18, text);
+        settings.setOnClickListener(v -> showSettings());
+        content.addView(settings);
+    }
+
+    private void showUserList(String title, Set<String> users) {
+        content.removeAllViews();
+
+        TextView heading = label(title, 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        Button back = new Button(this);
+        back.setText("← Back to Profile");
+        back.setOnClickListener(v -> showProfile());
+        content.addView(back);
+
+        if (users.isEmpty()) {
+            content.addView(
+                    label(
+                            "No " + title.toLowerCase() + " yet.",
+                            16,
+                            secondary
+                    )
+            );
+            return;
+        }
+
+        for (String username : users) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(8, 14, 8, 14);
+
+            TextView user = label(
+                    "👤  @" + username,
+                    17,
+                    text
+            );
+
+            Button follow = new Button(this);
+            boolean isFollowing = followingUsers.contains(username);
+            follow.setText(isFollowing ? "✓ Following" : "+ Follow");
+
+            follow.setOnClickListener(v -> {
+                if (followingUsers.contains(username)) {
+                    followingUsers.remove(username);
+                    followingCount =
+                            Math.max(0, followingCount - 1);
+                    follow.setText("+ Follow");
+                } else {
+                    followingUsers.add(username);
+                    followingCount++;
+                    follow.setText("✓ Following");
+                    addNotification(
+                            "You followed @" + username + "."
+                    );
+                }
+
+                profilePrefs.edit()
+                        .putInt("followingCount", followingCount)
+                        .putStringSet(
+                                "followingUsers",
+                                new HashSet<>(followingUsers)
+                        )
+                        .apply();
+            });
+
+            row.addView(
+                    user,
+                    new LinearLayout.LayoutParams(0, -2, 1)
+            );
+            row.addView(follow);
+            content.addView(row);
+        }
+    }
+
+    private void applyTheme() {
+        if (content == null) return;
+
+        if (darkMode) {
+            content.setBackgroundColor(Color.rgb(17, 24, 39));
+            text = Color.rgb(243, 244, 246);
+            secondary = Color.rgb(156, 163, 175);
+        } else {
+            content.setBackgroundColor(Color.WHITE);
+            text = Color.rgb(17, 24, 39);
+            secondary = Color.rgb(107, 114, 128);
+        }
+    }
+
+    private void showSettings() {
+        content.removeAllViews();
+
+        TextView heading = label("Settings", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView appearance = label("🎨  Appearance", 18, text);
+        content.addView(appearance);
+
+        Button theme = new Button(this);
+        theme.setText(darkMode ? "☀  Light Mode" : "🌙  Dark Mode");
+        theme.setTextSize(16);
+        content.addView(theme);
+
+        theme.setOnClickListener(v -> {
+            darkMode = !darkMode;
+
+            profilePrefs.edit()
+                    .putBoolean("darkMode", darkMode)
+                    .apply();
+
+            applyTheme();
+            showSettings();
+        });
+
+        Button color = new Button(this);
+        color.setText("🎨  App Color");
+        color.setTextSize(16);
+        content.addView(color);
+
+        color.setOnClickListener(v -> {
+            String[] names = {"Purple", "Blue", "Green", "Orange", "Pink"};
+            int[] colors = {
+                Color.rgb(124, 58, 237),
+                Color.rgb(37, 99, 235),
+                Color.rgb(22, 163, 74),
+                Color.rgb(234, 88, 12),
+                Color.rgb(219, 39, 119)
+            };
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Choose VYRA Color")
+                    .setItems(names, (dialog, which) -> {
+                        purple = colors[which];
+
+                        profilePrefs.edit()
+                                .putInt("appColor", purple)
+                                .apply();
+                        showSettings();
+                    })
+                    .show();
+        });
+
+        TextView privacy = label("🔒  Privacy", 18, text);
+        content.addView(privacy);
+
+        android.widget.Switch privateSwitch = new android.widget.Switch(this);
+        privateSwitch.setText("Private Account");
+        privateSwitch.setTextSize(16);
+        privateSwitch.setChecked(privateAccount);
+        privateSwitch.setPadding(20, 12, 20, 12);
+        content.addView(privateSwitch);
+
+        privateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            privateAccount = isChecked;
+
+            profilePrefs.edit()
+                    .putBoolean("privateAccount", privateAccount)
+                    .apply();
+        });
+
+        TextView notifications = label("🔔  Notifications", 18, text);
+        content.addView(notifications);
+
+        android.widget.Switch notificationSwitch = new android.widget.Switch(this);
+        notificationSwitch.setText("Allow Notifications");
+        notificationSwitch.setTextSize(16);
+        notificationSwitch.setChecked(notificationsEnabled);
+        notificationSwitch.setPadding(20, 12, 20, 12);
+        content.addView(notificationSwitch);
+
+        notificationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            notificationsEnabled = isChecked;
+
+            profilePrefs.edit()
+                    .putBoolean("notificationsEnabled", notificationsEnabled)
+                    .apply();
+        });
+
+        Button savedPosts = new Button(this);
+        savedPosts.setText("🔖  Saved Posts");
+        savedPosts.setTextSize(16);
+        content.addView(savedPosts);
+
+        savedPosts.setOnClickListener(v -> showSavedPosts());
+
+        TextView account = label("👤  Account", 18, text);
+        content.addView(account);
+
+        Button editAccount = new Button(this);
+        editAccount.setText("✏  Edit Account");
+        editAccount.setTextSize(16);
+        content.addView(editAccount);
+
+        editAccount.setOnClickListener(v -> {
+            android.widget.EditText usernameInput = new android.widget.EditText(this);
+            usernameInput.setHint("Username");
+            usernameInput.setSingleLine(true);
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Edit Account")
+                    .setView(usernameInput)
+                    .setPositiveButton("Save", (dialog, which) -> {
+                        showSettings();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+
+        Button language = new Button(this);
+        language.setText("🌐  Language");
+        language.setTextSize(16);
+        content.addView(language);
+
+        language.setOnClickListener(v -> {
+            String[] languages = {
+                "English",
+                "हिन्दी",
+                "অসমীয়া",
+                "বাংলা"
+            };
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Choose Language")
+                    .setItems(languages, (dialog, which) -> {
+                        language.setText("🌐  " + languages[which]);
+                    })
+                    .show();
+        });
+    }
+
+    private void showSavedPosts() {
+        content.removeAllViews();
+
+        TextView heading = label("🔖  Saved Posts", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        if (savedPosts.isEmpty()) {
+            content.addView(
+                    label(
+                            "\nNo saved posts yet.\n\nTap 🔖 Save on a post to see it here.",
+                            16,
+                            secondary
+                    )
+            );
+            return;
+        }
+
+        for (String saved : savedPosts) {
+            TextView item = label("🔖  " + saved, 17, text);
+            item.setPadding(12, 18, 12, 18);
+            content.addView(item);
+        }
+    }
+
+    private String getLastChatMessage(String username, String fallback) {
+        java.util.Set<String> saved = profilePrefs.getStringSet(
+                "chat_" + username,
+                new java.util.LinkedHashSet<String>()
+        );
+
+        if (saved != null && !saved.isEmpty()) {
+            String last = null;
+            for (String message : saved) {
+                last = message;
+            }
+            if (last != null && !last.trim().isEmpty()) {
+                return last;
+            }
+        }
+
+        return fallback;
+    }
+
+    private String getConversationId(String uid1, String uid2) {
+        if (uid1 == null || uid2 == null) return "";
+        return uid1.compareTo(uid2) < 0
+                ? uid1 + "_" + uid2
+                : uid2 + "_" + uid1;
+    }
+
+    private void showMessages() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.BLACK);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setPadding(18, 16, 18, 12);
+        top.setBackgroundColor(Color.BLACK);
+
+        TextView back = label("‹", 34, Color.WHITE);
+        back.setGravity(Gravity.CENTER);
+        top.addView(back, new LinearLayout.LayoutParams(48, 58));
+        back.setOnClickListener(v -> showHome());
+
+        TextView title = label("Messages", 25, Color.WHITE);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView compose = label("✎", 27, Color.WHITE);
+        compose.setGravity(Gravity.CENTER);
+        top.addView(compose, new LinearLayout.LayoutParams(52, 58));
+
+        root.addView(top);
+
+        TextView search = label("⌕   Search messages", 16, Color.LTGRAY);
+        search.setPadding(18, 14, 18, 14);
+        search.setBackgroundColor(Color.rgb(28, 28, 28));
+        LinearLayout.LayoutParams searchParams =
+                new LinearLayout.LayoutParams(-1, 54);
+        searchParams.setMargins(16, 4, 16, 16);
+        root.addView(search, searchParams);
+
+        android.widget.ScrollView scroll =
+                new android.widget.ScrollView(this);
+        scroll.setBackgroundColor(Color.BLACK);
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(8, 0, 8, 20);
+
+        String[][] users = {
+                {"vyra_creator", "VYRA Creator", "Welcome to VYRA 👋"},
+                {"travel_vyra", "Travel VYRA", "Let's explore something new ✨"},
+                {"foodie_vyra", "Foodie VYRA", "That food looks amazing 😋"},
+                {"tech_vyra", "Tech VYRA", "Hey! Check this out."},
+                {"music_vyra", "Music VYRA", "New music is coming 🎵"}
+        };
+
+        for (String[] user : users) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(10, 14, 10, 14);
+            row.setBackgroundColor(Color.BLACK);
+
+            TextView avatar = label(
+                    user[1].substring(0, 1).toUpperCase(),
+                    20,
+                    Color.WHITE
+            );
+            avatar.setGravity(Gravity.CENTER);
+            avatar.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            avatar.setBackgroundColor(Color.rgb(124, 58, 237));
+
+            row.addView(
+                    avatar,
+                    new LinearLayout.LayoutParams(58, 58)
+            );
+
+            LinearLayout details = new LinearLayout(this);
+            details.setOrientation(LinearLayout.VERTICAL);
+            details.setPadding(14, 0, 8, 0);
+
+            TextView name = label(user[1], 17, Color.WHITE);
+            name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+
+            TextView username = label(
+                    "@" + user[0],
+                    13,
+                    Color.GRAY
+            );
+
+            String latestMessage = getLastChatMessage(
+                    user[0],
+                    user[2]
+            );
+
+            TextView preview = label(
+                    latestMessage,
+                    13,
+                    Color.LTGRAY
+            );
+
+            details.addView(name);
+            details.addView(username);
+            details.addView(preview);
+
+            row.addView(
+                    details,
+                    new LinearLayout.LayoutParams(0, -2, 1)
+            );
+
+            TextView arrow = label("›", 30, Color.GRAY);
+            arrow.setGravity(Gravity.CENTER);
+            row.addView(
+                    arrow,
+                    new LinearLayout.LayoutParams(40, 58)
+            );
+
+            final String usernameValue = user[0];
+            final String displayNameValue = user[1];
+
+            View.OnClickListener openChat = v ->
+                    showChat(
+                            "",
+                            usernameValue,
+                            displayNameValue
+                    );
+
+            row.setClickable(true);
+            row.setFocusable(true);
+            row.setOnClickListener(openChat);
+
+            avatar.setClickable(true);
+            avatar.setFocusable(true);
+            details.setClickable(true);
+            details.setFocusable(true);
+            name.setClickable(true);
+            name.setFocusable(true);
+            username.setClickable(true);
+            username.setFocusable(true);
+            preview.setClickable(true);
+            preview.setFocusable(true);
+            arrow.setClickable(true);
+            arrow.setFocusable(true);
+
+            avatar.setOnClickListener(openChat);
+            details.setOnClickListener(openChat);
+            name.setOnClickListener(openChat);
+            username.setOnClickListener(openChat);
+            preview.setOnClickListener(openChat);
+            arrow.setOnClickListener(openChat);
+
+            list.addView(row);
+
+            View divider = new View(this);
+            divider.setBackgroundColor(Color.rgb(38, 38, 38));
+            list.addView(
+                    divider,
+                    new LinearLayout.LayoutParams(-1, 1)
+            );
+        }
+
+        scroll.addView(list);
+        root.addView(
+                scroll,
+                new LinearLayout.LayoutParams(-1, 0, 1)
+        );
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER);
+        nav.setPadding(4, 4, 4, 4);
+        nav.setBackgroundColor(Color.BLACK);
+
+        TextView home = navItem("⌂", "Home");
+        TextView messages = navItem("▱", "Message");
+        TextView upload = navItem("⊕", "Upload");
+        TextView account = navItem("♙", "Account");
+
+        messages.setTextColor(purple);
+
+        nav.addView(home, new LinearLayout.LayoutParams(0, 82, 1));
+        nav.addView(messages, new LinearLayout.LayoutParams(0, 82, 1));
+        nav.addView(upload, new LinearLayout.LayoutParams(0, 82, 1));
+        nav.addView(account, new LinearLayout.LayoutParams(0, 82, 1));
+
+        root.addView(nav);
+
+        home.setOnClickListener(v -> showHome());
+        messages.setOnClickListener(v -> showMessages());
+        upload.setOnClickListener(v -> showShorts());
+        account.setOnClickListener(v -> showProfile());
+
+        setContentView(root);
+    }
+
+    private void showChat(String otherUid, String username, String displayName) {
+        if (firebaseAuth.getCurrentUser() == null) {
+            showAuth();
+            return;
+        }
+
+        final String myUid = firebaseAuth.getCurrentUser().getUid();
+        final String conversationId = getConversationId(myUid, otherUid);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.BLACK);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setPadding(12, 12, 12, 12);
+        top.setBackgroundColor(Color.BLACK);
+
+        TextView back = label("‹", 36, Color.WHITE);
+        back.setGravity(Gravity.CENTER);
+        back.setClickable(true);
+        back.setFocusable(true);
+        back.setOnClickListener(v -> showMessages());
+        top.addView(back, new LinearLayout.LayoutParams(52, 58));
+
+        LinearLayout titleBox = new LinearLayout(this);
+        titleBox.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = label(displayName, 20, Color.WHITE);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+
+        TextView user = label("@" + username, 13, Color.GRAY);
+
+        titleBox.addView(title);
+        titleBox.addView(user);
+
+        top.addView(
+                titleBox,
+                new LinearLayout.LayoutParams(0, -2, 1)
+        );
+
+        root.addView(top);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.rgb(38, 38, 38));
+        root.addView(
+                divider,
+                new LinearLayout.LayoutParams(-1, 1)
+        );
+
+        android.widget.ScrollView scroll =
+                new android.widget.ScrollView(this);
+        scroll.setBackgroundColor(Color.BLACK);
+
+        LinearLayout messagesBox = new LinearLayout(this);
+        messagesBox.setOrientation(LinearLayout.VERTICAL);
+        messagesBox.setPadding(16, 16, 16, 16);
+
+        scroll.addView(messagesBox);
+
+        root.addView(
+                scroll,
+                new LinearLayout.LayoutParams(1, 0, 1)
+        );
+
+        LinearLayout inputRow = new LinearLayout(this);
+        inputRow.setGravity(Gravity.CENTER_VERTICAL);
+        inputRow.setPadding(10, 8, 10, 8);
+        inputRow.setBackgroundColor(Color.rgb(18, 18, 18));
+
+        final EditText input = new EditText(this);
+        input.setHint("Write a message...");
+        input.setHintTextColor(Color.GRAY);
+        input.setTextColor(Color.WHITE);
+        input.setSingleLine(true);
+
+        Button send = new Button(this);
+        send.setText("Send");
+        send.setTextSize(14);
+
+        inputRow.addView(
+                input,
+                new LinearLayout.LayoutParams(0, -2, 1)
+        );
+        inputRow.addView(send);
+
+        root.addView(
+                inputRow,
+                new LinearLayout.LayoutParams(-1, -2)
+        );
+
+        setContentView(root);
+
+        firestore.collection("conversations")
+                .document(conversationId)
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    if (!snapshot.exists()) {
+                        java.util.Map<String, Object> conversation =
+                                new java.util.HashMap<>();
+
+                        java.util.ArrayList<String> participants =
+                                new java.util.ArrayList<>();
+                        participants.add(myUid);
+                        participants.add(otherUid);
+
+                        conversation.put("participants", participants);
+                        conversation.put("lastMessage", "");
+                        conversation.put("lastSenderId", "");
+                        conversation.put(
+                                "createdAt",
+                                com.google.firebase.firestore.FieldValue.serverTimestamp()
+                        );
+                        conversation.put(
+                                "updatedAt",
+                                com.google.firebase.firestore.FieldValue.serverTimestamp()
+                        );
+
+                        firestore.collection("conversations")
+                                .document(conversationId)
+                                .set(conversation);
+                    }
+                });
+
+        firestore.collection("conversations")
+                .document(conversationId)
+                .collection("messages")
+                .orderBy(
+                        "createdAt",
+                        com.google.firebase.firestore.Query.Direction.ASCENDING
+                )
+                .addSnapshotListener((snapshot, error) -> {
+                    if (error != null) {
+                        messagesBox.removeAllViews();
+
+                        TextView errorView = label(
+                                "Unable to load messages. Check your connection.",
+                                15,
+                                Color.GRAY
+                        );
+                        errorView.setGravity(Gravity.CENTER);
+                        messagesBox.addView(errorView);
+                        return;
+                    }
+
+                    messagesBox.removeAllViews();
+
+                    if (snapshot == null || snapshot.isEmpty()) {
+                        TextView welcome = label(
+                                "Start a conversation with " + displayName,
+                                15,
+                                Color.GRAY
+                        );
+                        welcome.setGravity(Gravity.CENTER);
+                        messagesBox.addView(welcome);
+                        return;
+                    }
+
+                    for (
+                            com.google.firebase.firestore.QueryDocumentSnapshot doc
+                            : snapshot
+                    ) {
+                        String messageText = doc.getString("text");
+                        String senderId = doc.getString("senderId");
+
+                        if (messageText == null) {
+                            messageText = "";
+                        }
+
+                        boolean mine = myUid.equals(senderId);
+
+                        TextView messageView = label(
+                                (mine ? "You: " : displayName + ": ")
+                                        + messageText,
+                                16,
+                                Color.WHITE
+                        );
+
+                        messageView.setPadding(14, 10, 14, 10);
+                        messagesBox.addView(messageView);
+                    }
+
+                    scroll.post(() ->
+                            scroll.fullScroll(
+                                    android.view.View.FOCUS_DOWN
+                            )
+                    );
+                });
+
+        send.setOnClickListener(v -> {
+            String message = input.getText().toString().trim();
+
+            if (message.isEmpty()) {
+                return;
+            }
+
+            java.util.Map<String, Object> messageData =
+                    new java.util.HashMap<>();
+
+            messageData.put("senderId", myUid);
+            messageData.put("receiverId", otherUid);
+            messageData.put("text", message);
+            messageData.put(
+                    "createdAt",
+                    com.google.firebase.firestore.FieldValue.serverTimestamp()
+            );
+
+            java.util.Map<String, Object> conversationData =
+                    new java.util.HashMap<>();
+
+            java.util.ArrayList<String> participants =
+                    new java.util.ArrayList<>();
+            participants.add(myUid);
+            participants.add(otherUid);
+
+            conversationData.put("participants", participants);
+            conversationData.put("lastMessage", message);
+            conversationData.put("lastSenderId", myUid);
+            conversationData.put(
+                    "updatedAt",
+                    com.google.firebase.firestore.FieldValue.serverTimestamp()
+            );
+
+            firestore.collection("conversations")
+                    .document(conversationId)
+                    .set(conversationData,
+                            com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener(unused -> {
+
+                        firestore.collection("conversations")
+                                .document(conversationId)
+                                .collection("messages")
+                                .add(messageData)
+                                .addOnSuccessListener(doc -> {
+                                    input.setText("");
+
+                                    scroll.post(() ->
+                                            scroll.fullScroll(
+                                                    android.view.View.FOCUS_DOWN
+                                            )
+                                    );
+                                })
+                                .addOnFailureListener(e ->
+                                        android.widget.Toast.makeText(
+                                                this,
+                                                "Message failed: "
+                                                        + e.getMessage(),
+                                                android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                );
+                    })
+                    .addOnFailureListener(e ->
+                            android.widget.Toast.makeText(
+                                    this,
+                                    "Chat permission failed: "
+                                            + e.getMessage(),
+                                    android.widget.Toast.LENGTH_LONG
+                            ).show()
+                    );
+        });
+    }
+
+    private void showShorts() {
+        content.removeAllViews();
+
+        TextView heading = label("Shorts", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView info = label(
+                "Watch and create short vertical videos on VYRA.",
+                15, secondary);
+        content.addView(info);
+
+        Button upload = new Button(this);
+        upload.setText("＋  Choose a video");
+        upload.setTextSize(16);
+        upload.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, PICK_SHORT_VIDEO);
+        });
+        content.addView(upload);
+
+        TextView status = label(
+                "\nNo Short selected yet.",
+                16, secondary);
+        status.setGravity(Gravity.CENTER);
+        content.addView(status);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PICK_PROFILE_PHOTO && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+
+            profilePhotoUri = data.getData();
+
+            profilePrefs.edit()
+                    .putString("profilePhotoUri", profilePhotoUri.toString())
+                    .apply();
+
+            Uri photoUri = profilePhotoUri;
+
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        photoUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+            } catch (SecurityException ignored) {
+            }
+
+            showProfile();
+            return;
+        }
+
+        if (requestCode == PICK_SHORT_VIDEO && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+
+            Uri videoUri = data.getData();
+
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        videoUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                );
+            } catch (SecurityException ignored) {
+            }
+
+            showUploadEditor(videoUri);
+        }
+    }
+
+    private void showUploadEditor(Uri videoUri) {
+        content.removeAllViews();
+
+        TextView heading = label("Upload Video", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView selected = label("✓ Video selected", 15, secondary);
+        content.addView(selected);
+
+        android.widget.EditText titleInput = new android.widget.EditText(this);
+        titleInput.setHint("Title");
+        titleInput.setTextSize(16);
+        content.addView(titleInput);
+
+        android.widget.EditText categoryInput = new android.widget.EditText(this);
+        categoryInput.setHint("Category");
+        categoryInput.setTextSize(16);
+        content.addView(categoryInput);
+
+        android.widget.EditText countryInput = new android.widget.EditText(this);
+        countryInput.setHint("Country");
+        countryInput.setTextSize(16);
+        content.addView(countryInput);
+
+        android.widget.EditText languageInput = new android.widget.EditText(this);
+        languageInput.setHint("Language");
+        languageInput.setTextSize(16);
+        content.addView(languageInput);
+
+        Button trim = new Button(this);
+        trim.setText("✂  Trim / Cut video");
+        trim.setTextSize(16);
+        content.addView(trim);
+
+        trim.setOnClickListener(v -> {
+            android.widget.LinearLayout trimBox = new android.widget.LinearLayout(this);
+            trimBox.setOrientation(android.widget.LinearLayout.VERTICAL);
+            trimBox.setPadding(0, 8, 0, 8);
+
+            TextView trimInfo = label("Set start and end time (seconds)", 15, secondary);
+            trimBox.addView(trimInfo);
+
+            android.widget.EditText startInput = new android.widget.EditText(this);
+            startInput.setHint("Start: 0 seconds");
+            startInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            trimBox.addView(startInput);
+
+            android.widget.EditText endInput = new android.widget.EditText(this);
+            endInput.setHint("End: duration in seconds");
+            endInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            trimBox.addView(endInput);
+
+            Button applyTrim = new Button(this);
+            applyTrim.setText("✓  Set Trim Duration");
+            trimBox.addView(applyTrim);
+
+            applyTrim.setOnClickListener(x -> {
+                String start = startInput.getText().toString().trim();
+                String end = endInput.getText().toString().trim();
+
+                if (start.isEmpty() || end.isEmpty()) {
+                    trimInfo.setText("Please enter both start and end time.");
+                    return;
+                }
+
+                trimInfo.setText("✓ Trim set: " + start + "s → " + end + "s");
+            });
+
+            content.addView(trimBox);
+        });
+
+        Button effects = new Button(this);
+        effects.setText("✨  3D Animation / Effects");
+        effects.setTextSize(16);
+        content.addView(effects);
+
+        effects.setOnClickListener(v -> {
+            android.app.AlertDialog.Builder builder =
+                    new android.app.AlertDialog.Builder(this);
+
+            builder.setTitle("Choose an Effect");
+
+            String[] effectOptions = {
+                    "None",
+                    "✨ 3D Zoom",
+                    "🔄 3D Spin",
+                    "↔️ 3D Slide",
+                    "💫 3D Pulse"
+            };
+
+            builder.setItems(effectOptions, (dialog, which) -> {
+                effects.setText("✨ Effect: " + effectOptions[which]);
+            });
+
+            builder.setNegativeButton("Cancel", null);
+            builder.show();
+        });
+
+        Button durationButton = new Button(this);
+        durationButton.setText("⏱  Set Video Duration");
+        durationButton.setTextSize(16);
+        content.addView(durationButton);
+
+        durationButton.setOnClickListener(v -> {
+            android.widget.EditText durationInput = new android.widget.EditText(this);
+            durationInput.setHint("Duration in seconds");
+            durationInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Set Video Duration")
+                    .setMessage("Enter duration in seconds.")
+                    .setView(durationInput)
+                    .setPositiveButton("Apply", (dialog, which) -> {
+                        String value = durationInput.getText().toString().trim();
+
+                        if (value.isEmpty()) {
+                            durationButton.setText("⏱  Duration: Not set");
+                            return;
+                        }
+
+                        try {
+                            int seconds = Integer.parseInt(value);
+
+                            if (seconds > 0) {
+                                durationButton.setText("⏱  Duration: " + seconds + " seconds");
+                            } else {
+                                durationButton.setText("⏱  Duration: Invalid");
+                            }
+                        } catch (NumberFormatException e) {
+                            durationButton.setText("⏱  Duration: Invalid");
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+
+        TextView progress = label("\nUpload progress: 0%\n", 17, secondary);
+        progress.setGravity(Gravity.CENTER);
+        content.addView(progress);
+
+        Button upload = new Button(this);
+        upload.setText("📤  Upload Video");
+        upload.setTextSize(16);
+        content.addView(upload);
+
+        upload.setOnClickListener(v -> {
+            String title = titleInput.getText().toString().trim();
+            String category = categoryInput.getText().toString().trim();
+            String country = countryInput.getText().toString().trim();
+            String language = languageInput.getText().toString().trim();
+
+            if (title.isEmpty() || category.isEmpty() ||
+                    country.isEmpty() || language.isEmpty()) {
+                progress.setTextColor(Color.rgb(220, 38, 38));
+                progress.setText(
+                        "\nPlease fill Title, Category, Country and Language.\n"
+                );
+                return;
+            }
+
+            upload.setEnabled(false);
+            progress.setTextColor(secondary);
+
+            final android.os.Handler handler =
+                    new android.os.Handler(android.os.Looper.getMainLooper());
+            final int[] percent = {0};
+
+            Runnable uploader = new Runnable() {
+                @Override
+                public void run() {
+                    percent[0] += 5;
+
+                    int remaining = 100 - percent[0];
+
+                    progress.setText(
+                            "\nUpload progress: " + percent[0] + "%\n" +
+                            "Remaining: " + remaining + "%\n"
+                    );
+
+                    if (percent[0] >= 100) {
+                        progress.setTextColor(purple);
+                        progress.setText("\nUpload successful: 100%\n");
+
+                        localVideoUri = videoUri.toString();
+                        localVideoTitle = title;
+
+                        profilePrefs.edit()
+                                .putString("localVideoUri", localVideoUri)
+                                .putString("localVideoTitle", localVideoTitle)
+                                .apply();
+
+                        handler.postDelayed(() -> showHome(), 700);
+                    } else {
+                        handler.postDelayed(this, 250);
+                    }
+                }
+            };
+
+            handler.post(uploader);
+        });
+    }
+
+    private void showShortPreview(Uri videoUri) {
+        content.removeAllViews();
+
+        TextView heading = label("Short Preview", 26, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        VideoView video = new VideoView(this);
+        MediaController controller = new MediaController(this);
+        controller.setAnchorView(video);
+        video.setMediaController(controller);
+        video.setVideoURI(videoUri);
+        video.requestFocus();
+        video.setLayoutParams(new LinearLayout.LayoutParams(
+                -1, 600));
+        content.addView(video);
+
+        Button play = new Button(this);
+        play.setText("▶  Play Short");
+        play.setOnClickListener(v -> {
+            video.start();
+        });
+        content.addView(play);
+
+        Button back = new Button(this);
+        back.setText("←  Choose another video");
+        back.setOnClickListener(v -> showShorts());
+        content.addView(back);
+
+        video.setOnPreparedListener(mp -> {
+            mp.setLooping(true);
+            video.start();
+        });
+    }
+
+    private void addNotification(String message) {
+        localNotifications.add(message);
+        unreadNotifications++;
+
+        profilePrefs.edit()
+                .putStringSet(
+                        "localNotifications",
+                        new HashSet<>(localNotifications)
+                )
+                .putInt("unreadNotifications", unreadNotifications)
+                .apply();
+    }
+
+    private void showNotificationDetail(String notification) {
+        content.removeAllViews();
+
+        TextView heading = label("Notification", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView detail = label(
+                "\n🔔  " + notification + "\n",
+                18,
+                text
+        );
+        detail.setPadding(12, 20, 12, 20);
+        content.addView(detail);
+
+        Button back = new Button(this);
+        back.setText("← Back to Activity");
+        back.setOnClickListener(v -> showActivity());
+        content.addView(back);
+    }
+
+    private void showActivity() {
+        content.removeAllViews();
+
+        unreadNotifications = 0;
+        profilePrefs.edit()
+                .putInt("unreadNotifications", 0)
+                .apply();
+
+        TextView heading = label("Activity", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        if (localNotifications.isEmpty()) {
+            content.addView(
+                    label("\n🔔  You're all caught up!", 16, secondary)
+            );
+            content.addView(
+                    label("No new activity yet.", 15, secondary)
+            );
+            return;
+        }
+
+        for (int i = localNotifications.size() - 1; i >= 0; i--) {
+            final String notification = localNotifications.get(i);
+
+            TextView item = label(
+                    "🔔  " + notification,
+                    16,
+                    text
+            );
+            item.setPadding(8, 18, 8, 18);
+            item.setOnClickListener(v ->
+                    showNotificationDetail(notification)
+            );
+
+            content.addView(item);
+        }
+    }
+
+    private void showSearch() {
+        content.removeAllViews();
+
+        TextView heading = label("Discover Users", 28, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        TextView sub = label("Find real people on VYRA", 16, secondary);
+        content.addView(sub);
+
+        final EditText searchInput = new EditText(this);
+        searchInput.setHint("Search username or name...");
+        searchInput.setSingleLine(true);
+        searchInput.setPadding(16, 12, 16, 12);
+        content.addView(searchInput);
+
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
+        content.addView(
+                results,
+                new LinearLayout.LayoutParams(-1, -2)
+        );
+
+        Runnable renderResults = () -> {
+            results.removeAllViews();
+
+            String query = searchInput.getText()
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+
+            firestore.collection("users")
+                    .get()
+                    .addOnCompleteListener(task -> {
+                        if (!task.isSuccessful()) {
+                            results.addView(
+                                    label(
+                                            "Unable to load users. Check your connection.",
+                                            15,
+                                            secondary
+                                    )
+                            );
+                            return;
+                        }
+
+                        int found = 0;
+
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot doc
+                                : task.getResult()) {
+
+                            String uid = doc.getString("uid");
+                            String username = doc.getString("username");
+                            String displayName = doc.getString("displayName");
+
+                            if (uid == null) {
+                                uid = doc.getId();
+                            }
+
+                            if (username == null || username.trim().isEmpty()) {
+                                username = "vyrauser";
+                            }
+
+                            if (displayName == null || displayName.trim().isEmpty()) {
+                                displayName = username;
+                            }
+
+                            if (firebaseAuth.getCurrentUser() != null
+                                    && uid.equals(firebaseAuth.getCurrentUser().getUid())) {
+                                continue;
+                            }
+
+                            String usernameLower = username.toLowerCase();
+                            String displayNameLower = displayName.toLowerCase();
+
+                            if (!query.isEmpty()
+                                    && !usernameLower.contains(query)
+                                    && !displayNameLower.contains(query)) {
+                                continue;
+                            }
+
+                            found++;
+
+                            final String finalUid = uid;
+                            final String finalUsername = username;
+                            final String finalDisplayName = displayName;
+
+                            LinearLayout row = new LinearLayout(this);
+                            row.setOrientation(LinearLayout.HORIZONTAL);
+                            row.setGravity(Gravity.CENTER_VERTICAL);
+                            row.setPadding(8, 14, 8, 14);
+                            row.setClickable(true);
+
+                            LinearLayout info = new LinearLayout(this);
+                            info.setOrientation(LinearLayout.VERTICAL);
+
+                            TextView nameView =
+                                    label(finalDisplayName, 17, text);
+                            nameView.setTypeface(
+                                    Typeface.DEFAULT,
+                                    Typeface.BOLD
+                            );
+
+                            TextView usernameView =
+                                    label(
+                                            "@" + finalUsername,
+                                            14,
+                                            secondary
+                                    );
+
+                            info.addView(nameView);
+                            info.addView(usernameView);
+
+                            View.OnClickListener openProfile =
+                                    v -> showUserProfile(
+                                            finalUid,
+                                            finalUsername,
+                                            finalDisplayName
+                                    );
+
+                            row.setOnClickListener(openProfile);
+                            info.setOnClickListener(openProfile);
+                            nameView.setOnClickListener(openProfile);
+                            usernameView.setOnClickListener(openProfile);
+
+                            Button follow = new Button(this);
+                            follow.setText(
+                                    followingUsers.contains(finalUsername)
+                                            ? "✓ Following"
+                                            : "+ Follow"
+                            );
+
+                            follow.setOnClickListener(v -> {
+                                if (followingUsers.contains(finalUsername)) {
+                                    followingUsers.remove(finalUsername);
+                                    followingCount =
+                                            Math.max(0, followingCount - 1);
+                                    follow.setText("+ Follow");
+                                } else {
+                                    followingUsers.add(finalUsername);
+                                    followingCount++;
+                                    follow.setText("✓ Following");
+
+                                    addNotification(
+                                            "You followed @"
+                                                    + finalUsername
+                                                    + "."
+                                    );
+                                }
+
+                                profilePrefs.edit()
+                                        .putInt(
+                                                "followingCount",
+                                                followingCount
+                                        )
+                                        .putStringSet(
+                                                "followingUsers",
+                                                new HashSet<>(
+                                                        followingUsers
+                                                )
+                                        )
+                                        .apply();
+                            });
+
+                            row.addView(
+                                    info,
+                                    new LinearLayout.LayoutParams(
+                                            0,
+                                            -2,
+                                            1
+                                    )
+                            );
+
+                            row.addView(follow);
+                            results.addView(row);
+                        }
+
+                        if (found == 0) {
+                            results.addView(
+                                    label(
+                                            query.isEmpty()
+                                                    ? "No other users yet."
+                                                    : "No users found.",
+                                            16,
+                                            secondary
+                                    )
+                            );
+                        }
+                    });
+        };
+
+        searchInput.addTextChangedListener(
+                new android.text.TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(
+                            CharSequence s,
+                            int start,
+                            int count,
+                            int after) {
+                    }
+
+                    @Override
+                    public void onTextChanged(
+                            CharSequence s,
+                            int start,
+                            int before,
+                            int count) {
+                        renderResults.run();
+                    }
+
+                    @Override
+                    public void afterTextChanged(
+                            android.text.Editable s) {
+                    }
+                }
+        );
+
+        renderResults.run();
+    }
+
+    private void showUserProfile(String uid, String username, String displayName) {
+        content.removeAllViews();
+
+        Button back = new Button(this);
+        back.setText("← Back");
+        back.setOnClickListener(v -> showSearch());
+        content.addView(back);
+
+        TextView name = label(displayName, 28, text);
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        name.setGravity(Gravity.CENTER);
+        content.addView(name);
+
+        TextView user = label("@" + username, 16, secondary);
+        user.setGravity(Gravity.CENTER);
+        content.addView(user);
+
+        TextView bio = label("\nShare your world on VYRA", 16, text);
+        bio.setGravity(Gravity.CENTER);
+        content.addView(bio);
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.setGravity(Gravity.CENTER);
+
+        TextView followers = label("0\nFollowers", 15, text);
+        followers.setGravity(Gravity.CENTER);
+
+        TextView following = label("0\nFollowing", 15, text);
+        following.setGravity(Gravity.CENTER);
+
+        stats.addView(followers, new LinearLayout.LayoutParams(0, -2, 1));
+        stats.addView(following, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(stats);
+
+        Button follow = new Button(this);
+        follow.setText(followingUsers.contains(username) ? "✓ Following" : "+ Follow");
+        follow.setTextSize(16);
+        content.addView(follow);
+
+        Button messageButton = new Button(this);
+        messageButton.setText("✉ Message");
+        messageButton.setTextSize(16);
+        content.addView(messageButton);
+
+        messageButton.setOnClickListener(v ->
+                showChat(uid, username, displayName)
+        );
+
+        follow.setOnClickListener(v -> {
+            if (followingUsers.contains(username)) {
+                followingUsers.remove(username);
+                followingCount = Math.max(0, followingCount - 1);
+                follow.setText("+ Follow");
+            } else {
+                followingUsers.add(username);
+                followingCount++;
+                follow.setText("✓ Following");
+                addNotification("You followed @" + username + ".");
+            }
+
+            profilePrefs.edit()
+                    .putInt("followingCount", followingCount)
+                    .putStringSet("followingUsers", new HashSet<>(followingUsers))
+                    .apply();
+        });
+
+        content.addView(label("\nNo posts yet.", 16, secondary));
+    }
+
+    private void showMessage(String title) {
+        content.removeAllViews();
+
+        TextView heading = label("Comments", 26, text);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        content.addView(heading);
+
+        LinearLayout inputRow = new LinearLayout(this);
+        inputRow.setOrientation(LinearLayout.HORIZONTAL);
+        inputRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        final android.widget.EditText input =
+                new android.widget.EditText(this);
+        input.setHint("Write a comment...");
+        input.setSingleLine(true);
+
+        Button send = new Button(this);
+        send.setText("Send");
+
+        inputRow.addView(input,
+                new LinearLayout.LayoutParams(0, -2, 1));
+        inputRow.addView(send);
+
+        content.addView(inputRow);
+
+        LinearLayout commentsList = new LinearLayout(this);
+        commentsList.setOrientation(LinearLayout.VERTICAL);
+        content.addView(commentsList);
+
+        for (String commentText : localComments) {
+            commentsList.addView(
+                    label("👤  " + commentText, 16, text)
+            );
+        }
+
+        if (localComments.isEmpty()) {
+            commentsList.addView(
+                    label("\nNo comments yet. Be the first to comment!",
+                            16, secondary)
+            );
+        }
+
+        send.setOnClickListener(v -> {
+            String value = input.getText().toString().trim();
+
+            if (value.isEmpty()) {
+                return;
+            }
+
+            localComments.add(value);
+            addNotification("You added a comment.");
+
+            profilePrefs.edit()
+                    .putStringSet(
+                            "localComments",
+                            new HashSet<>(localComments)
+                    )
+                    .apply();
+
+            showMessage("Comments");
+        });
+    }
+}
